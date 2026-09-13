@@ -2,6 +2,8 @@
 
 ブラウザだけで完結するローカルPNG→WebP変換ツールです。サーバーへのアップロードは一切行わず、Canvas APIを使ってすべての変換をブラウザ内で処理します。
 
+🔗 **公開ページ: https://haya256.github.io/webp-converter-h2/**
+
 ## 特徴
 
 - サーバー送信なし・完全ローカル変換（Canvas API）

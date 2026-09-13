@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PNG → WebP 変換</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f7f7f8;
+    --card: #ffffff;
+    --border: #e2e2e6;
+    --text: #1a1a1e;
+    --muted: #6b6b74;
+    --accent: #6a4cff;
+    --accent-hover: #5a3ce0;
+    --drop-bg: #f0edff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17171b;
+      --card: #212126;
+      --border: #34343b;
+      --text: #f0f0f2;
+      --muted: #9a9aa2;
+      --accent: #8a72ff;
+      --accent-hover: #9d88ff;
+      --drop-bg: #26223d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic", sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 40px 16px;
+  }
+  .wrap { width: 100%; max-width: 640px; }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  p.sub { color: var(--muted); margin: 0 0 24px; font-size: 0.9rem; }
+
+  #dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    background: var(--card);
+    padding: 48px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  #dropzone.drag { border-color: var(--accent); background: var(--drop-bg); }
+  #dropzone .icon { font-size: 2.2rem; margin-bottom: 8px; }
+  #dropzone .main { font-weight: 600; }
+  #dropzone .hint { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
+  input[type=file] { display: none; }
+
+  #list { display: flex; flex-direction: column; gap: 12px; }
+  .item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .item-head .name {
+    font-size: 0.9rem;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .results {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-top: 10px;
+  }
+  @media (max-width: 640px) {
+    .results { grid-template-columns: repeat(2, 1fr); }
+  }
+  .result {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px;
+    text-align: center;
+  }
+  .thumb {
+    display: block;
+    aspect-ratio: 1 / 1;
+    border-radius: 6px;
+    overflow: hidden;
+    background-image:
+      linear-gradient(45deg, #80808022 25%, transparent 25%),
+      linear-gradient(-45deg, #80808022 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #80808022 75%),
+      linear-gradient(-45deg, transparent 75%, #80808022 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+    cursor: zoom-in;
+  }
+  .thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .result .pctof {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--accent);
+    margin-top: 8px;
+    line-height: 1.1;
+  }
+  .result .pctof .unit { font-size: 0.95rem; }
+  .result .pctof-caption { font-size: 0.68rem; color: var(--muted); margin-top: 1px; }
+  .result .rlabel { font-size: 0.8rem; font-weight: 600; margin-top: 6px; }
+  .result .rsize { font-size: 0.72rem; color: var(--muted); margin: 2px 0 8px; min-height: 1.1em; }
+  .result a.dl {
+    display: block;
+    background: var(--accent);
+    color: #fff;
+    text-decoration: none;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 6px 8px;
+    border-radius: 8px;
+  }
+  .result a.dl:hover { background: var(--accent-hover); }
+  .result a.dl.disabled { pointer-events: none; opacity: .4; }
+  .result .dl-placeholder { font-size: 0.72rem; color: var(--muted); }
+
+  #actions { margin-top: 16px; text-align: right; }
+  #actions button {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  #actions button:hover { color: var(--text); border-color: var(--muted); }
+  footer { margin-top: 28px; color: var(--muted); font-size: 0.78rem; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>PNG → WebP 変換</h1>
+  <p class="sub">すべてブラウザ内で処理されます。ファイルはどこにもアップロードされません。</p>
+
+  <div id="dropzone">
+    <div class="icon">🖼️</div>
+    <div class="main">クリックまたはドラッグ&ドロップでPNGを選択</div>
+    <div class="hint">複数ファイル対応</div>
+    <input type="file" id="fileInput" accept="image/png" multiple>
+  </div>
+
+  <div id="list"></div>
+  <div id="actions" hidden>
+    <button id="clearBtn">クリア</button>
+  </div>
+
+  <footer>サーバー送信なし・Canvas APIでローカル変換</footer>
+</div>
+
+<script>
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const list = document.getElementById('list');
+const actions = document.getElementById('actions');
+const clearBtn = document.getElementById('clearBtn');
+
+const PRESETS = [
+  { key: 'high', label: '高画質', quality: 95 },
+  { key: 'standard', label: '標準', quality: 80 },
+  { key: 'light', label: '軽量', quality: 55 },
+];
+
+dropzone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+['dragenter', 'dragover'].forEach(evt =>
+  dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.add('drag'); })
+);
+['dragleave', 'drop'].forEach(evt =>
+  dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.remove('drag'); })
+);
+dropzone.addEventListener('drop', e => handleFiles(e.dataTransfer.files));
+
+clearBtn.addEventListener('click', () => {
+  list.innerHTML = '';
+  actions.hidden = true;
+});
+
+function formatBytes(bytes) {
+  return Math.ceil(bytes / 1024).toLocaleString('en-US') + ' KB';
+}
+
+function handleFiles(fileList) {
+  const files = Array.from(fileList).filter(f => f.type === 'image/png');
+  if (!files.length) return;
+  actions.hidden = false;
+  files.forEach(convertFile);
+}
+
+function convertFile(file) {
+  const row = document.createElement('div');
+  row.className = 'item';
+  row.innerHTML = `
+    <div class="item-head">
+      <div class="name">${file.name}</div>
+    </div>
+    <div class="results">
+      <div class="result" data-key="original">
+        <a class="thumb" href="#" target="_blank" rel="noopener"><img alt=""></a>
+        <div class="pctof">100<span class="unit">%</span></div>
+        <div class="pctof-caption">元画像</div>
+        <div class="rlabel">元画像 (PNG)</div>
+        <div class="rsize">${formatBytes(file.size)}</div>
+        <div class="dl-placeholder">比較用</div>
+      </div>
+      ${PRESETS.map(p => `
+        <div class="result" data-key="${p.key}">
+          <a class="thumb" href="#" target="_blank" rel="noopener"><img alt=""></a>
+          <div class="pctof">–</div>
+          <div class="pctof-caption">元画像比</div>
+          <div class="rlabel">${p.label}</div>
+          <div class="rsize">変換中…</div>
+          <a class="dl disabled" href="#">保存</a>
+        </div>
+      `).join('')}
+    </div>
+  `;
+  list.prepend(row);
+
+  const origResult = row.querySelector('.result[data-key="original"]');
+  const origThumb = origResult.querySelector('.thumb');
+  const origImg = origResult.querySelector('img');
+
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    origImg.src = url;
+    origThumb.href = url;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+
+    PRESETS.forEach(p => {
+      const resultEl = row.querySelector(`.result[data-key="${p.key}"]`);
+      const thumbEl = resultEl.querySelector('.thumb');
+      const imgEl = resultEl.querySelector('img');
+      const pctofEl = resultEl.querySelector('.pctof');
+      const sizeEl = resultEl.querySelector('.rsize');
+      const dlEl = resultEl.querySelector('a.dl');
+
+      canvas.toBlob(blob => {
+        if (!blob) {
+          sizeEl.textContent = '非対応';
+          return;
+        }
+        const outUrl = URL.createObjectURL(blob);
+        const outName = file.name.replace(/\.png$/i, '') + '.webp';
+        const pctOfOriginal = Math.round((blob.size / file.size) * 100);
+        imgEl.src = outUrl;
+        thumbEl.href = outUrl;
+        pctofEl.innerHTML = `${pctOfOriginal}<span class="unit">%</span>`;
+        sizeEl.textContent = formatBytes(blob.size);
+        dlEl.href = outUrl;
+        dlEl.download = outName;
+        dlEl.classList.remove('disabled');
+      }, 'image/webp', p.quality / 100);
+    });
+  };
+  img.onerror = () => {
+    row.querySelectorAll('.rsize').forEach(el => el.textContent = '読み込み失敗');
+  };
+  img.src = url;
+}
+</script>
+</body>
+</html>
